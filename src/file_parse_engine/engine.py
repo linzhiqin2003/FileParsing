@@ -123,6 +123,9 @@ class FileParseEngine:
             if self.settings.enrich_links:
                 doc = self._enrich_links(doc, path)
 
+        # Store rendering options in metadata for save()/to_markdown()
+        doc.metadata["_page_tags"] = self.settings.page_tags
+
         return doc
 
     # ------------------------------------------------------------------

@@ -80,13 +80,15 @@ class ParsedDocument:
     def page_count(self) -> int:
         return len(self.pages)
 
-    def to_markdown(self, *, page_tags: bool = False) -> str:
+    def to_markdown(self, *, page_tags: bool | None = None) -> str:
         """Assemble all pages into a single Markdown string.
 
         Args:
-            page_tags: If True, insert ``<!-- page:N -->`` comments for
-                       source tracing (no ``---`` separators).
+            page_tags: Insert ``<!-- page:N -->`` comments. If None, reads
+                       from metadata (set by engine from Settings).
         """
+        if page_tags is None:
+            page_tags = self.metadata.get("_page_tags", False)
         from file_parse_engine.renderer.markdown import merge_cross_page_tables
 
         parts: list[str] = []
@@ -105,7 +107,7 @@ class ParsedDocument:
         separator = "\n\n" if page_tags else "\n\n---\n\n"
         return separator.join(p for p in parts if p.strip())
 
-    def save(self, output_dir: str | Path, *, page_tags: bool = False) -> Path:
+    def save(self, output_dir: str | Path, *, page_tags: bool | None = None) -> Path:
         """Save the assembled Markdown to a file (atomic write)."""
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)

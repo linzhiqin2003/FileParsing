@@ -205,7 +205,7 @@ def parse(
     # Parse
     import time
     t0 = time.perf_counter()
-    results = asyncio.run(_parse_files(engine, files, output, verbose, effective_strategy, settings.page_tags))
+    results = asyncio.run(_parse_files(engine, files, output, verbose, effective_strategy))
     elapsed = time.perf_counter() - t0
 
     # Summary table
@@ -283,7 +283,6 @@ async def _parse_files(
     output: Path,
     verbose: bool,
     strategy: str,
-    page_tags: bool = False,
 ) -> list:
     """Parse files with a Rich progress bar."""
     results = []
@@ -322,7 +321,7 @@ async def _parse_files(
 
             try:
                 doc = await engine.parse(file, on_page=_on_page)
-                output_file = doc.save(output, page_tags=page_tags)
+                output_file = doc.save(output)
                 doc.metadata["output_file"] = str(output_file)
                 results.append(doc)
             except Exception as exc:

@@ -96,6 +96,7 @@ def parse(
     model: str = typer.Option("", "--model", "-m", help="VLM model alias from routes (e.g. qwen3.5-9b, gemini-flash)"),
     enrich_links: bool = typer.Option(False, "--enrich-links", "-l", help="Inject real PDF hyperlinks into output"),
     extract_images: bool = typer.Option(False, "--extract-images", "-i", help="Export embedded images & inject into Markdown"),
+    page_tags: bool = typer.Option(False, "--page-tags", "-p", help="Insert <!-- page:N --> comments for source tracing"),
     force: bool = typer.Option(False, "--force", "-f", help="Re-parse files even if output already exists"),
     concurrency: int = typer.Option(0, "--concurrency", "-c", help="Max concurrent VLM requests (0 = auto)"),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable debug logging"),
@@ -115,6 +116,8 @@ def parse(
         settings.enrich_links = True
     if extract_images:
         settings.extract_images = True
+    if page_tags:
+        settings.page_tags = True
 
     effective_strategy: ParseStrategy = settings.strategy
 
@@ -168,6 +171,8 @@ def parse(
         flags.append("links")
     if extract_images:
         flags.append("images")
+    if page_tags:
+        flags.append("page-tags")
 
     header = Text()
     header.append("  Strategy  ", style="dim")
@@ -200,7 +205,7 @@ def parse(
     # Parse
     import time
     t0 = time.perf_counter()
-    results = asyncio.run(_parse_files(engine, files, output, verbose, effective_strategy))
+    results = asyncio.run(_parse_files(engine, files, output, verbose, effective_strategy, settings.page_tags))
     elapsed = time.perf_counter() - t0
 
     # Summary table
@@ -278,6 +283,7 @@ async def _parse_files(
     output: Path,
     verbose: bool,
     strategy: str,
+    page_tags: bool = False,
 ) -> list:
     """Parse files with a Rich progress bar."""
     results = []
@@ -316,7 +322,7 @@ async def _parse_files(
 
             try:
                 doc = await engine.parse(file, on_page=_on_page)
-                output_file = doc.save(output)
+                output_file = doc.save(output, page_tags=page_tags)
                 doc.metadata["output_file"] = str(output_file)
                 results.append(doc)
             except Exception as exc:

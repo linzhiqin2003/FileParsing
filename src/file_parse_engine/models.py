@@ -80,11 +80,12 @@ class ParsedDocument:
     def page_count(self) -> int:
         return len(self.pages)
 
-    def to_markdown(self) -> str:
+    def to_markdown(self, *, page_tags: bool = False) -> str:
         """Assemble all pages into a single Markdown string.
 
-        Automatically merges tables that span across page boundaries
-        (detected via VLM markers or heuristic column-count matching).
+        Args:
+            page_tags: If True, insert ``<!-- page:N -->`` comments for
+                       source tracing (no ``---`` separators).
         """
         from file_parse_engine.renderer.markdown import merge_cross_page_tables
 
@@ -93,15 +94,18 @@ class ParsedDocument:
         for page in sorted(self.pages, key=lambda p: p.page_number):
             content = page.markdown.strip()
             if content:
-                parts.append(content)
+                if page_tags:
+                    parts.append(f"<!-- page:{page.page_number} -->\n{content}")
+                else:
+                    parts.append(content)
 
-        # Merge cross-page tables before joining
+        # Merge cross-page tables
         parts = merge_cross_page_tables(parts)
 
-        # Filter out empty pages after merge
-        return "\n\n---\n\n".join(p for p in parts if p.strip())
+        separator = "\n\n" if page_tags else "\n\n---\n\n"
+        return separator.join(p for p in parts if p.strip())
 
-    def save(self, output_dir: str | Path) -> Path:
+    def save(self, output_dir: str | Path, *, page_tags: bool = False) -> Path:
         """Save the assembled Markdown to a file (atomic write)."""
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -112,6 +116,6 @@ class ParsedDocument:
         # Atomic write: write to temp file first, then rename
         # Prevents half-written files from being treated as checkpoints
         tmp_file = output_file.with_suffix(".md.tmp")
-        tmp_file.write_text(self.to_markdown(), encoding="utf-8")
+        tmp_file.write_text(self.to_markdown(page_tags=page_tags), encoding="utf-8")
         tmp_file.rename(output_file)
         return output_file

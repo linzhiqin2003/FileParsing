@@ -55,6 +55,7 @@ class Settings(BaseSettings):
     # --- Enrichment ---
     enrich_links: bool = False    # Inject real PDF links into output (any strategy)
     extract_images: bool = False  # Export embedded images & inject into Markdown
+    page_tags: bool = False       # Insert <!-- page:N --> comments for source tracing
 
     # --- VLM Behavior ---
     vlm_model_override: str = ""  # CLI --model override; empty = use routes default

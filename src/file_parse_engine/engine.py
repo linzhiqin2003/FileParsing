@@ -118,8 +118,6 @@ class FileParseEngine:
 
         # Enrichment passes (PDF only)
         if parser.file_type == "pdf":
-            if self.settings.merge_pages and strategy in ("vlm", "hybrid"):
-                doc = await self._merge_pages_pass(doc, parser, path)
             if self.settings.extract_images:
                 doc = self._enrich_images(doc, path)
             if self.settings.enrich_links:
@@ -310,98 +308,6 @@ class FileParseEngine:
         logger.debug("Link enrichment: injected links for %d page(s)", len(all_links))
         return doc
 
-    async def _merge_pages_pass(
-        self, doc: ParsedDocument, parser, path: Path,
-    ) -> ParsedDocument:
-        """Second pass: re-extract cross-page table boundaries with dual-page VLM requests.
-
-        Scans for TABLE_CONTINUES / TABLE_CONTINUED markers, then sends both
-        adjacent pages in a single VLM request for coherent table extraction.
-        """
-        import re
-
-        _CONTINUES = re.compile(r"<!--\s*TABLE_CONTINUES\s*:\s*columns\s*=\s*\d+\s*-->")
-        _CONTINUED = re.compile(r"<!--\s*TABLE_CONTINUED\s*:\s*columns\s*=\s*\d+\s*-->")
-
-        pages_by_num = {p.page_number: p for p in doc.pages}
-        page_images_cache: dict[int, PageImage] | None = None
-
-        # Find page pairs that need dual-page re-extraction
-        pairs: list[tuple[int, int]] = []
-        seen: set[int] = set()
-        for p in sorted(doc.pages, key=lambda x: x.page_number):
-            if _CONTINUES.search(p.markdown):
-                next_num = p.page_number + 1
-                if next_num in pages_by_num:
-                    pairs.append((p.page_number, next_num))
-                    seen.add(p.page_number)
-                    seen.add(next_num)
-            elif _CONTINUED.search(p.markdown) and p.page_number not in seen:
-                prev_num = p.page_number - 1
-                if prev_num in pages_by_num:
-                    pairs.append((prev_num, p.page_number))
-                    seen.add(prev_num)
-                    seen.add(p.page_number)
-
-        if not pairs:
-            return doc
-
-        # Render page images (once)
-        all_page_images = await parser.to_page_images(path)
-        page_images_cache = {pi.page_number: pi for pi in all_page_images}
-
-        logger.debug("Merge-pages pass: re-extracting %d page pair(s)", len(pairs))
-
-        from file_parse_engine.vlm.prompts import SNIPPET_DUAL_PAGE_MERGE
-        prompt = SNIPPET_DUAL_PAGE_MERGE
-
-        # Concurrent dual-page requests
-        async def _extract_pair(pg_a: int, pg_b: int) -> tuple[int, int, list[ParsedPage]]:
-            img_a = page_images_cache.get(pg_a)
-            img_b = page_images_cache.get(pg_b)
-            if not img_a or not img_b:
-                return pg_a, pg_b, []
-            result = await self.vlm.extract_multi_page([img_a, img_b], prompt)
-            return pg_a, pg_b, result
-
-        results = await asyncio.gather(*[_extract_pair(a, b) for a, b in pairs])
-
-        # Apply results with safety checks
-        overwritten: set[int] = set()
-        for pg_a, pg_b, result_pages in results:
-            for rp in result_pages:
-                rp.markdown = clean_markdown(rp.markdown)
-                pn = rp.page_number
-
-                # Skip empty results
-                if not rp.markdown.strip():
-                    continue
-
-                if pn not in pages_by_num:
-                    continue
-
-                original = pages_by_num[pn].markdown
-                new_content = rp.markdown
-
-                # Safety: if new content is much shorter than original,
-                # it was likely truncated — keep the original
-                if len(original) > 100 and len(new_content) < len(original) * 0.6:
-                    logger.debug(
-                        "Merge-pages: skipping page %d — new content too short "
-                        "(%d vs %d chars, likely truncated)",
-                        pn, len(new_content), len(original),
-                    )
-                    continue
-
-                if pn in overwritten:
-                    if pn == pg_b:
-                        pages_by_num[pn].markdown = new_content
-                else:
-                    pages_by_num[pn].markdown = new_content
-                overwritten.add(pn)
-
-        return doc
-
     @staticmethod
     def _count_pdf_images_per_page(path: Path) -> dict[int, int]:
         """Count embedded images per page (lightweight, no extraction)."""
@@ -557,9 +463,9 @@ class FileParseEngine:
 
         base_prompt = get_prompt(parser.file_type)
 
-        # Append conditional snippets based on active flags
-        if self.settings.merge_pages:
-            base_prompt += SNIPPET_CROSS_PAGE_TABLE
+        # Always inject cross-page table markers for VLM strategy
+        # (merge_cross_page_tables() in to_markdown() handles the merge)
+        base_prompt += SNIPPET_CROSS_PAGE_TABLE
 
         # Pre-scan image counts (for -i flag)
         page_image_counts: dict[int, int] = {}

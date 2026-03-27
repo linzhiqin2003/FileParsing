@@ -55,7 +55,6 @@ class Settings(BaseSettings):
     # --- Enrichment ---
     enrich_links: bool = False    # Inject real PDF links into output (any strategy)
     extract_images: bool = False  # Export embedded images & inject into Markdown
-    merge_pages: bool = False     # Re-extract cross-page tables with dual-page VLM request
 
     # --- VLM Behavior ---
     vlm_model_override: str = ""  # CLI --model override; empty = use routes default

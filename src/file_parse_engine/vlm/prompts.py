@@ -103,22 +103,6 @@ SNIPPET_IMAGE_NUMBERING = """
 This page contains {n_images} embedded image(s). When you encounter each image, output a numbered placeholder in this exact format: ![description](figure_0), ![description](figure_1), etc. Number them starting from 0 in the order they appear top-to-bottom.
 """
 
-SNIPPET_DUAL_PAGE_MERGE = """\
-You are given TWO consecutive pages from the SAME document. These two pages contain a SINGLE table that is split across the page break.
-
-Your task: combine ALL rows from BOTH pages into exactly ONE Markdown table.
-
-Rules:
-1. There is only ONE table header — take it from the first page. NEVER repeat the header row.
-2. Every data row from page 1 AND page 2 goes into this ONE table. Do NOT output two separate tables.
-3. Sub-section labels within the table (e.g. "Operating expenses", "Other", "Changes in operating assets...") are regular rows in the SAME table — do NOT break the table at these rows.
-4. Currency symbol + number = ONE cell: `| $ 26,044 |` is correct; `| $ | 26,044 |` is WRONG.
-5. If there is non-table content (titles, notes) before the table on page 1 or after the table on page 2, output it normally outside the table.
-6. Separate page 1 content and page 2 content with a single `---` line. The merged table should appear entirely under page 1's section.
-
-Output ONLY Markdown. No commentary.\
-"""
-
 # ---------------------------------------------------------------------------
 # Lookup
 # ---------------------------------------------------------------------------

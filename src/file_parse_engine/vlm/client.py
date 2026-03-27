@@ -95,61 +95,6 @@ class VLMClient:
                 provider=provider_used,
             )
 
-    async def extract_multi_page(
-        self, pages: list[PageImage], prompt: str,
-    ) -> list[ParsedPage]:
-        """Send multiple page images in a single VLM request.
-
-        Returns one ParsedPage per page, split by page markers in the output.
-        """
-        async with self._semaphore:
-            provider_used = self.primary.name
-            images = [p.image_bytes for p in pages]
-            try:
-                text, usage = await self.primary.extract(
-                    images, prompt, timeout=self.timeout,
-                )
-            except VLMError as exc:
-                if self.fallback is None:
-                    raise
-                provider_used = self.fallback.name
-                text, usage = await self.fallback.extract(
-                    images, prompt, timeout=self.timeout,
-                )
-
-            self._usage_log.append(usage)
-
-        # Split output by page separator (--- or explicit page markers)
-        import re
-        parts = re.split(r"\n---+\s*\n", text)
-
-        results: list[ParsedPage] = []
-        if len(parts) >= len(pages):
-            # Model split correctly — assign each part to its page
-            for i, page in enumerate(pages):
-                md = parts[i].strip() if i < len(parts) else ""
-                results.append(ParsedPage(
-                    page_number=page.page_number,
-                    markdown=md,
-                    provider=provider_used,
-                ))
-        else:
-            # Model merged everything into one block (e.g. unified table).
-            # Assign entire output to the first page, leave others empty.
-            results.append(ParsedPage(
-                page_number=pages[0].page_number,
-                markdown=text.strip(),
-                provider=provider_used,
-            ))
-            for page in pages[1:]:
-                results.append(ParsedPage(
-                    page_number=page.page_number,
-                    markdown="",
-                    provider=provider_used,
-                ))
-
-        return results
-
     async def extract_pages(
         self,
         pages: list[PageImage],

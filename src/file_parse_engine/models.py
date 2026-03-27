@@ -81,7 +81,13 @@ class ParsedDocument:
         return len(self.pages)
 
     def to_markdown(self) -> str:
-        """Assemble all pages into a single Markdown string."""
+        """Assemble all pages into a single Markdown string.
+
+        Automatically merges tables that span across page boundaries
+        (detected via VLM markers or heuristic column-count matching).
+        """
+        from file_parse_engine.renderer.markdown import merge_cross_page_tables
+
         parts: list[str] = []
 
         for page in sorted(self.pages, key=lambda p: p.page_number):
@@ -89,7 +95,11 @@ class ParsedDocument:
             if content:
                 parts.append(content)
 
-        return "\n\n---\n\n".join(parts)
+        # Merge cross-page tables before joining
+        parts = merge_cross_page_tables(parts)
+
+        # Filter out empty pages after merge
+        return "\n\n---\n\n".join(p for p in parts if p.strip())
 
     def save(self, output_dir: str | Path) -> Path:
         """Save the assembled Markdown to a file (atomic write)."""

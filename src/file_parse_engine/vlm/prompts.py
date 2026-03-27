@@ -27,11 +27,14 @@ Rules:
 4. For images/figures, describe them as: ![Figure description](figure)
 5. NEVER invent or guess URLs. If text looks like a hyperlink but the URL is not fully visible in the image, output the text without link markup. Only use [text](url) when the URL is explicitly printed on the page.
 6. Maintain the natural reading order (top-to-bottom, left-to-right).
-6. For multi-column layouts, merge columns into single-column flow while preserving logical order.
-7. Preserve emphasis (bold, italic) where clearly visible.
-8. Extract footnotes and place them at the end of the page content.
-9. If there are page numbers, headers, or footers, exclude them.
-10. Output ONLY the extracted content in Markdown. No explanations, no meta-commentary, no fabricated information.
+7. For multi-column layouts, merge columns into single-column flow while preserving logical order.
+8. Preserve emphasis (bold, italic) where clearly visible.
+9. Extract footnotes and place them at the end of the page content.
+10. If there are page numbers, headers, or footers, exclude them.
+11. Cross-page table detection:
+    - If a table at the BOTTOM of the page appears incomplete (no summary/total row, no bottom border, data rows seem to continue), add this marker AFTER the table: <!-- TABLE_CONTINUES:columns=N --> (N = number of columns).
+    - If a table at the TOP of the page appears to be a continuation from a previous page (no table title, starts directly with data rows or a repeated header), add this marker BEFORE the table: <!-- TABLE_CONTINUED:columns=N -->.
+12. Output ONLY the extracted content in Markdown. No explanations, no meta-commentary, no fabricated information.
 """
 
 SLIDE_PROMPT = """\
@@ -56,7 +59,10 @@ Rules:
 3. Handle merged cells by repeating content or using appropriate notation.
 4. Include any surrounding text context (titles, captions).
 5. For complex tables with merged cells, use the simplest accurate representation.
-6. Output ONLY the Markdown content, no explanations.
+6. Cross-page table detection:
+   - If a table at the BOTTOM of the page appears incomplete, add after it: <!-- TABLE_CONTINUES:columns=N -->
+   - If a table at the TOP of the page is a continuation, add before it: <!-- TABLE_CONTINUED:columns=N -->
+7. Output ONLY the Markdown content, no explanations.
 """
 
 SCAN_PROMPT = """\

@@ -328,20 +328,25 @@ class FileParseEngine:
 
         # Find page pairs that need dual-page re-extraction
         pairs: list[tuple[int, int]] = []
-        for p in doc.pages:
+        seen: set[int] = set()
+        for p in sorted(doc.pages, key=lambda x: x.page_number):
             if _CONTINUES.search(p.markdown):
                 next_num = p.page_number + 1
                 if next_num in pages_by_num:
                     pairs.append((p.page_number, next_num))
-            elif _CONTINUED.search(p.markdown):
+                    seen.add(p.page_number)
+                    seen.add(next_num)
+            elif _CONTINUED.search(p.markdown) and p.page_number not in seen:
                 prev_num = p.page_number - 1
-                if prev_num in pages_by_num and (prev_num, p.page_number) not in pairs:
+                if prev_num in pages_by_num:
                     pairs.append((prev_num, p.page_number))
+                    seen.add(prev_num)
+                    seen.add(p.page_number)
 
         if not pairs:
             return doc
 
-        # Lazy-render page images (only once, only if needed)
+        # Render page images (once)
         all_page_images = await parser.to_page_images(path)
         page_images_cache = {pi.page_number: pi for pi in all_page_images}
 
@@ -360,6 +365,9 @@ class FileParseEngine:
             "Output ONLY Markdown, no explanations."
         )
 
+        # Track which pages have been overwritten to avoid double-overwrite
+        overwritten: set[int] = set()
+
         for pg_a, pg_b in pairs:
             img_a = page_images_cache.get(pg_a)
             img_b = page_images_cache.get(pg_b)
@@ -368,11 +376,19 @@ class FileParseEngine:
 
             result_pages = await self.vlm.extract_multi_page([img_a, img_b], prompt)
 
-            # Replace the original pages with re-extracted content
             for rp in result_pages:
                 rp.markdown = clean_markdown(rp.markdown)
-                if rp.page_number in pages_by_num:
-                    pages_by_num[rp.page_number].markdown = rp.markdown
+                pn = rp.page_number
+                if pn in pages_by_num:
+                    if pn in overwritten:
+                        # Chain case: page already overwritten by previous pair.
+                        # Only overwrite if this is the FIRST page of current pair
+                        # (the "continued" side belongs to the new pair).
+                        if pn == pg_b:
+                            pages_by_num[pn].markdown = rp.markdown
+                    else:
+                        pages_by_num[pn].markdown = rp.markdown
+                    overwritten.add(pn)
 
         return doc
 

@@ -31,9 +31,10 @@ Rules:
 8. Preserve emphasis (bold, italic) where clearly visible.
 9. Extract footnotes and place them at the end of the page content.
 10. If there are page numbers, headers, or footers, exclude them.
-11. Cross-page table detection:
+11. Table column consistency: When converting tables, determine the correct number of columns from the table header. Keep this column count consistent for ALL rows. If a cell contains a currency symbol (e.g. "$") followed by a number, they belong in the SAME cell — do NOT split them into separate columns. Example: `| $ 20,406 |` is correct, `| $ | 20,406 |` is WRONG.
+12. Cross-page table detection:
     - If a table at the BOTTOM of the page appears incomplete (no summary/total row, no bottom border, data rows seem to continue), add this marker AFTER the table: <!-- TABLE_CONTINUES:columns=N --> (N = number of columns).
-    - If a table at the TOP of the page appears to be a continuation from a previous page (no table title, starts directly with data rows or a repeated header), add this marker BEFORE the table: <!-- TABLE_CONTINUED:columns=N -->.
+    - If a table at the TOP of the page appears to be a continuation from a previous page (no table title, starts directly with data rows or a repeated header), add this marker BEFORE the table: <!-- TABLE_CONTINUED:columns=N -->. Maintain the same column structure as the table from the previous page.
 12. Output ONLY the extracted content in Markdown. No explanations, no meta-commentary, no fabricated information.
 """
 
@@ -59,7 +60,8 @@ Rules:
 3. Handle merged cells by repeating content or using appropriate notation.
 4. Include any surrounding text context (titles, captions).
 5. For complex tables with merged cells, use the simplest accurate representation.
-6. Cross-page table detection:
+6. Column consistency: Currency symbols and their numbers belong in the SAME cell (e.g. `| $ 20,406 |` not `| $ | 20,406 |`). Keep column count consistent across all rows.
+7. Cross-page table detection:
    - If a table at the BOTTOM of the page appears incomplete, add after it: <!-- TABLE_CONTINUES:columns=N -->
    - If a table at the TOP of the page is a continuation, add before it: <!-- TABLE_CONTINUED:columns=N -->
 7. Output ONLY the Markdown content, no explanations.

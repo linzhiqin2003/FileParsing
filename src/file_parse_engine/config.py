@@ -58,7 +58,7 @@ class Settings(BaseSettings):
 
     # --- VLM Behavior ---
     vlm_model_override: str = ""  # CLI --model override; empty = use routes default
-    vlm_concurrency: int = 5
+    vlm_concurrency: int = 10
     vlm_timeout: int = 60
 
     # --- Image Processing ---

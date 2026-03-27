@@ -153,11 +153,35 @@ def parse(
     badge = _strategy_badge(effective_strategy)
     cost = _cost_badge(effective_strategy)
 
+    # Resolve model name for display
+    model_display = ""
+    if effective_strategy in ("vlm", "hybrid"):
+        try:
+            from file_parse_engine.vlm.routes import load_routes
+            rc = load_routes(settings.vlm_routes_file)
+            model_name = settings.vlm_model_override or rc.primary
+            m = rc.models.get(model_name)
+            model_display = m.model_id if m else model_name
+        except Exception:
+            model_display = settings.vlm_model_override or "auto"
+
+    # Enrichment flags
+    flags = []
+    if enrich_links:
+        flags.append("links")
+    if extract_images:
+        flags.append("images")
+    if merge_pages:
+        flags.append("merge-pages")
+
     header = Text()
     header.append("  Strategy  ", style="dim")
     header.append_text(badge)
     header.append("   Cost  ", style="dim")
     header.append_text(cost)
+    if model_display:
+        header.append("   Model  ", style="dim")
+        header.append(model_display, style="cyan")
     header.append("\n")
     header.append(f"  Files     ", style="dim")
     header.append(f"{len(files)}", style="bold")
@@ -165,6 +189,9 @@ def parse(
         header.append(f" [dim]({len(skipped)} skipped)[/]")
     header.append(f"          Output  ", style="dim")
     header.append(str(output), style="cyan")
+    if flags:
+        header.append(f"   Enrich  ", style="dim")
+        header.append(", ".join(flags), style="yellow")
 
     console.print()
     console.print(Panel(

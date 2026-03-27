@@ -92,14 +92,18 @@ def _try_merge_pair(page_a: str, page_b: str) -> tuple[str, str] | None:
     Returns ``(new_page_a, new_page_b)`` if merged, else ``None``.
     """
     # --- VLM marker-based detection ---
+    # Either marker present → attempt merge (don't require both)
     cont_match = _TABLE_CONTINUES.search(page_a)
     contd_match = _TABLE_CONTINUED.search(page_b)
 
-    if cont_match and contd_match:
-        cols_a = int(cont_match.group(1))
-        cols_b = int(contd_match.group(1))
-        if cols_a == cols_b:
-            return _merge_with_markers(page_a, page_b, cont_match, contd_match)
+    if cont_match or contd_match:
+        # If both present, validate column count
+        if cont_match and contd_match:
+            cols_a = int(cont_match.group(1))
+            cols_b = int(contd_match.group(1))
+            if cols_a != cols_b:
+                return None  # column mismatch → don't merge
+        return _merge_with_markers(page_a, page_b, cont_match, contd_match)
 
     # --- Heuristic detection (fast/ocr, no markers) ---
     return _merge_heuristic(page_a, page_b)
@@ -108,15 +112,15 @@ def _try_merge_pair(page_a: str, page_b: str) -> tuple[str, str] | None:
 def _merge_with_markers(
     page_a: str,
     page_b: str,
-    cont_match: re.Match,
-    contd_match: re.Match,
+    cont_match: re.Match | None,
+    contd_match: re.Match | None,
 ) -> tuple[str, str]:
-    """Merge tables using VLM-emitted markers."""
-    # Remove the CONTINUES marker from page_a
-    a_text = page_a[:cont_match.start()].rstrip()
+    """Merge tables using VLM-emitted markers (either or both may be present)."""
+    # Remove the CONTINUES marker from page_a (if present)
+    a_text = page_a[:cont_match.start()].rstrip() if cont_match else page_a.rstrip()
 
-    # Split page_b at the CONTINUED marker
-    b_after_marker = page_b[contd_match.end():].lstrip("\n")
+    # Split page_b at the CONTINUED marker (if present)
+    b_after_marker = page_b[contd_match.end():].lstrip("\n") if contd_match else page_b.lstrip("\n")
 
     # Extract the continuation table rows from page_b
     cont_lines = b_after_marker.split("\n")

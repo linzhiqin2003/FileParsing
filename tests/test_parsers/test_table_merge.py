@@ -46,6 +46,27 @@ class TestVLMMarkerMerge:
         assert "TABLE_CONTINUES" in result[0]
         assert "TABLE_CONTINUED" in result[1]
 
+    def test_only_continues_marker(self):
+        """Only page_a has CONTINUES, page_b has no CONTINUED → still merge."""
+        page_a = "| A | B |\n| --- | --- |\n| 1 | 2 |\n<!-- TABLE_CONTINUES:columns=2 -->"
+        page_b = "| A | B |\n| --- | --- |\n| 3 | 4 |\n\nFooter."
+
+        result = merge_cross_page_tables([page_a, page_b])
+
+        assert "| 1 | 2 |" in result[0]
+        assert "| 3 | 4 |" in result[0]
+        assert "TABLE_CONTINUES" not in result[0]
+
+    def test_only_continued_marker(self):
+        """Only page_b has CONTINUED, page_a has no CONTINUES → still merge."""
+        page_a = "# Title\n\n| A | B |\n| --- | --- |\n| 1 | 2 |"
+        page_b = "<!-- TABLE_CONTINUED:columns=2 -->\n| A | B |\n| --- | --- |\n| 3 | 4 |"
+
+        result = merge_cross_page_tables([page_a, page_b])
+
+        assert "| 1 | 2 |" in result[0]
+        assert "| 3 | 4 |" in result[0]
+
     def test_no_markers_no_vlm_merge(self):
         page_a = "# Title\n\nSome text."
         page_b = "More text."

@@ -129,5 +129,56 @@ class VLMProvider:
 
             return text, usage
 
+    async def refine_text(
+        self,
+        raw_text: str,
+        prompt: str,
+        *,
+        timeout: int = 60,
+    ) -> tuple[str, VLMUsage]:
+        """Send raw text (no images) to the LLM for restructuring."""
+        payload = {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": raw_text},
+            ],
+            "max_tokens": self.max_tokens,
+            "temperature": self.temperature,
+        }
+
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            logger.debug("%s text-refine: %d chars", self.name, len(raw_text))
+            resp = await client.post(
+                f"{self.base_url}/chat/completions",
+                json=payload,
+                headers=headers,
+            )
+
+            if resp.status_code != 200:
+                raise VLMError(
+                    f"{self.name} API error: {resp.status_code} - {resp.text}",
+                    provider=self.name,
+                    status_code=resp.status_code,
+                )
+
+            data = resp.json()
+            text = data["choices"][0]["message"]["content"]
+
+            raw_usage = data.get("usage", {})
+            usage = VLMUsage(
+                input_tokens=raw_usage.get("prompt_tokens", 0),
+                output_tokens=raw_usage.get("completion_tokens", 0),
+                input_price=self.input_price,
+                output_price=self.output_price,
+            )
+
+            return text, usage
+
     def __repr__(self) -> str:
         return f"VLMProvider(name={self.name!r}, model={self.model!r})"

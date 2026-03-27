@@ -95,8 +95,16 @@ class FileParseEngine:
         )
 
         # Parsers that never need VLM always take the direct path
+        # EXCEPT: DOCX/PPTX without LibreOffice + vlm/hybrid → LLM text refine
         if not parser.needs_vlm:
-            doc = await parser.to_markdown_direct(path)
+            if (
+                strategy in ("vlm", "hybrid")
+                and parser.file_type in ("docx", "pptx")
+                and self._vlm_available()
+            ):
+                doc = await self._parse_llm_refine(parser, path)
+            else:
+                doc = await parser.to_markdown_direct(path)
             doc.metadata = metadata
             for page in doc.pages:
                 page.markdown = clean_markdown(page.markdown)
@@ -349,6 +357,32 @@ class FileParseEngine:
                 provider="local",
             )],
         )
+
+    async def _parse_llm_refine(self, parser, path: Path) -> ParsedDocument:
+        """Extract raw text programmatically, then send to LLM for restructuring.
+
+        Used for DOCX/PPTX when LibreOffice is unavailable but VLM/hybrid
+        strategy is requested. Much cheaper than image-based VLM (text-only tokens).
+        """
+        from file_parse_engine.vlm.prompts import REFINE_DOCUMENT_PROMPT, REFINE_SLIDE_PROMPT
+
+        # Step 1: extract raw text via python-docx/pptx
+        doc = await parser.to_markdown_direct(path)
+
+        # Step 2: pick the refine prompt
+        refine_prompt = REFINE_SLIDE_PROMPT if parser.file_type == "pptx" else REFINE_DOCUMENT_PROMPT
+
+        # Step 3: send each page's raw text to LLM for restructuring
+        for page in doc.pages:
+            raw = page.markdown.strip()
+            if not raw:
+                continue
+
+            refined, _usage = await self.vlm.refine_text(raw, refine_prompt)
+            page.markdown = refined
+            page.provider = f"{self.vlm.primary.name}/refine"
+
+        return doc
 
     async def _parse_ocr(
         self,

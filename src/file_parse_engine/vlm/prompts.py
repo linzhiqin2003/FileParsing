@@ -103,6 +103,37 @@ SNIPPET_IMAGE_NUMBERING = """
 This page contains {n_images} embedded image(s). When you encounter each image, output a numbered placeholder in this exact format: ![description](figure_0), ![description](figure_1), etc. Number them starting from 0 in the order they appear top-to-bottom.
 """
 
+REFINE_DOCUMENT_PROMPT = """\
+You are a document restructuring engine. The user will provide raw text \
+extracted programmatically from a document (DOCX/PPTX). The text may be \
+messy, unstructured, or out of order.
+
+Your task: restructure it into clean, well-organized Markdown.
+
+Rules:
+1. Infer heading hierarchy from context (titles, section names → # ## ###).
+2. Preserve all tables in Markdown table format.
+3. Organize bullet points and numbered lists properly.
+4. Fix line breaks and paragraph boundaries.
+5. Preserve all data and numbers exactly — do NOT modify, summarize, or omit any content.
+6. If the text contains slide-like content, use ## for each slide title.
+7. Output ONLY the restructured Markdown. No explanations or commentary.\
+"""
+
+REFINE_SLIDE_PROMPT = """\
+You are a presentation restructuring engine. The user will provide raw text \
+extracted from presentation slides. Each slide's content may be mixed together.
+
+Your task: restructure it into clean Markdown, one section per slide.
+
+Rules:
+1. Use ## for each slide title.
+2. Organize bullet points and sub-points with proper nesting.
+3. Preserve tables in Markdown table format.
+4. Preserve all content exactly — do NOT summarize or omit.
+5. Output ONLY the restructured Markdown. No explanations.\
+"""
+
 # ---------------------------------------------------------------------------
 # Lookup
 # ---------------------------------------------------------------------------

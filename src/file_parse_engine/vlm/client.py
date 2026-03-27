@@ -58,6 +58,23 @@ class VLMClient:
 
     # -- extraction -------------------------------------------------
 
+    async def refine_text(self, raw_text: str, prompt: str) -> tuple[str, VLMUsage]:
+        """Send raw text to LLM for restructuring (no images, pure text tokens)."""
+        async with self._semaphore:
+            try:
+                text, usage = await self.primary.refine_text(
+                    raw_text, prompt, timeout=self.timeout,
+                )
+            except VLMError as exc:
+                if self.fallback is None:
+                    raise
+                text, usage = await self.fallback.refine_text(
+                    raw_text, prompt, timeout=self.timeout,
+                )
+
+            self._usage_log.append(usage)
+            return text, usage
+
     async def extract_page(self, page: PageImage, prompt: str) -> ParsedPage:
         """Extract content from a single page image with rate limiting and failover."""
         async with self._semaphore:

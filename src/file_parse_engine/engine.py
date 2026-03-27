@@ -365,25 +365,25 @@ class FileParseEngine:
             "Output ONLY Markdown, no explanations."
         )
 
-        # Track which pages have been overwritten to avoid double-overwrite
-        overwritten: set[int] = set()
-
-        for pg_a, pg_b in pairs:
+        # Concurrent dual-page requests
+        async def _extract_pair(pg_a: int, pg_b: int) -> tuple[int, int, list[ParsedPage]]:
             img_a = page_images_cache.get(pg_a)
             img_b = page_images_cache.get(pg_b)
             if not img_a or not img_b:
-                continue
+                return pg_a, pg_b, []
+            result = await self.vlm.extract_multi_page([img_a, img_b], prompt)
+            return pg_a, pg_b, result
 
-            result_pages = await self.vlm.extract_multi_page([img_a, img_b], prompt)
+        results = await asyncio.gather(*[_extract_pair(a, b) for a, b in pairs])
 
+        # Apply results with chain-aware overwrite logic
+        overwritten: set[int] = set()
+        for pg_a, pg_b, result_pages in results:
             for rp in result_pages:
                 rp.markdown = clean_markdown(rp.markdown)
                 pn = rp.page_number
                 if pn in pages_by_num:
                     if pn in overwritten:
-                        # Chain case: page already overwritten by previous pair.
-                        # Only overwrite if this is the FIRST page of current pair
-                        # (the "continued" side belongs to the new pair).
                         if pn == pg_b:
                             pages_by_num[pn].markdown = rp.markdown
                     else:

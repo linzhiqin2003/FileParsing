@@ -352,19 +352,8 @@ class FileParseEngine:
 
         logger.debug("Merge-pages pass: re-extracting %d page pair(s)", len(pairs))
 
-        prompt = (
-            "You are given TWO consecutive pages of a document. "
-            "A table on the first page continues onto the second page.\n\n"
-            "CRITICAL — you MUST merge the cross-page table into ONE single Markdown table:\n"
-            "- Use the header row from the first page ONLY. Do NOT repeat headers.\n"
-            "- ALL data rows from both pages go into this ONE table — no splitting.\n"
-            "- Rows with sub-categories (e.g. 'Other', 'Changes in...') are still part of the same table — keep them as rows, do NOT break the table.\n"
-            "- Keep currency symbols and numbers in the same cell: `$ 20,406` is ONE cell, not `$ | 20,406`.\n"
-            "- Indented sub-items are still table rows. Preserve the indentation in the first column text.\n\n"
-            "For content BEFORE the table on page 1 and AFTER the table on page 2, "
-            "output normally. Separate pre-table, table, and post-table sections with blank lines.\n\n"
-            "Output ONLY Markdown, no explanations."
-        )
+        from file_parse_engine.vlm.prompts import SNIPPET_DUAL_PAGE_MERGE
+        prompt = SNIPPET_DUAL_PAGE_MERGE
 
         # Concurrent dual-page requests
         async def _extract_pair(pg_a: int, pg_b: int) -> tuple[int, int, list[ParsedPage]]:
@@ -541,26 +530,28 @@ class FileParseEngine:
         if on_page:
             on_page(0, len(page_images))  # init progress bar immediately
 
+        from file_parse_engine.vlm.prompts import (
+            SNIPPET_CROSS_PAGE_TABLE,
+            SNIPPET_IMAGE_NUMBERING,
+        )
+
         base_prompt = get_prompt(parser.file_type)
 
-        # When extract_images is enabled, pre-scan image count per page
-        # and inject numbered placeholders into the prompt
+        # Append conditional snippets based on active flags
+        if self.settings.merge_pages:
+            base_prompt += SNIPPET_CROSS_PAGE_TABLE
+
+        # Pre-scan image counts (for -i flag)
         page_image_counts: dict[int, int] = {}
         if self.settings.extract_images and parser.file_type == "pdf":
             page_image_counts = self._count_pdf_images_per_page(path)
 
-        # Build per-page prompts (with image numbering if applicable)
+        # Build per-page prompts
         prompts: list[str] = []
         for pi in page_images:
             n_imgs = page_image_counts.get(pi.page_number, 0)
             if n_imgs > 0:
-                img_hint = (
-                    f"\n\nThis page contains {n_imgs} embedded image(s). "
-                    f"When you encounter each image, output a numbered placeholder "
-                    f"in this exact format: ![description](figure_0), ![description](figure_1), etc. "
-                    f"Number them starting from 0 in the order they appear top-to-bottom."
-                )
-                prompts.append(base_prompt + img_hint)
+                prompts.append(base_prompt + SNIPPET_IMAGE_NUMBERING.format(n_images=n_imgs))
             else:
                 prompts.append(base_prompt)
 

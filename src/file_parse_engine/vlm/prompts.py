@@ -1,4 +1,9 @@
-"""VLM prompt templates for different document types."""
+"""VLM prompt templates for different document types.
+
+Base prompts are minimal and clean. Conditional rules (cross-page markers,
+image numbering, etc.) are in separate snippets — the engine assembles them
+based on active flags.
+"""
 
 from __future__ import annotations
 
@@ -14,7 +19,7 @@ SYSTEM_PROMPT = (
 )
 
 # ---------------------------------------------------------------------------
-# Per-type extraction prompts
+# Base prompts (always present)
 # ---------------------------------------------------------------------------
 
 DOCUMENT_PROMPT = """\
@@ -31,10 +36,7 @@ Rules:
 8. Preserve emphasis (bold, italic) where clearly visible.
 9. Extract footnotes and place them at the end of the page content.
 10. If there are page numbers, headers, or footers, exclude them.
-11. Table column consistency: When converting tables, determine the correct number of columns from the table header. Keep this column count consistent for ALL rows. If a cell contains a currency symbol (e.g. "$") followed by a number, they belong in the SAME cell — do NOT split them into separate columns. Example: `| $ 20,406 |` is correct, `| $ | 20,406 |` is WRONG.
-12. Cross-page table detection:
-    - If a table at the BOTTOM of the page appears incomplete (no summary/total row, no bottom border, data rows seem to continue), add this marker AFTER the table: <!-- TABLE_CONTINUES:columns=N --> (N = number of columns).
-    - If a table at the TOP of the page appears to be a continuation from a previous page (no table title, starts directly with data rows or a repeated header), add this marker BEFORE the table: <!-- TABLE_CONTINUED:columns=N -->. Maintain the same column structure as the table from the previous page.
+11. Table column consistency: determine the correct number of columns from the table header. Keep column count consistent for ALL rows. Currency symbols and numbers belong in the SAME cell (e.g. `| $ 20,406 |` not `| $ | 20,406 |`).
 12. Output ONLY the extracted content in Markdown. No explanations, no meta-commentary, no fabricated information.
 """
 
@@ -60,10 +62,7 @@ Rules:
 3. Handle merged cells by repeating content or using appropriate notation.
 4. Include any surrounding text context (titles, captions).
 5. For complex tables with merged cells, use the simplest accurate representation.
-6. Column consistency: Currency symbols and their numbers belong in the SAME cell (e.g. `| $ 20,406 |` not `| $ | 20,406 |`). Keep column count consistent across all rows.
-7. Cross-page table detection:
-   - If a table at the BOTTOM of the page appears incomplete, add after it: <!-- TABLE_CONTINUES:columns=N -->
-   - If a table at the TOP of the page is a continuation, add before it: <!-- TABLE_CONTINUED:columns=N -->
+6. Column consistency: Currency symbols and numbers belong in the SAME cell. Keep column count consistent across all rows.
 7. Output ONLY the Markdown content, no explanations.
 """
 
@@ -90,9 +89,41 @@ Rules:
 5. Output ONLY the Markdown content, no explanations.
 """
 
+# ---------------------------------------------------------------------------
+# Conditional snippets (appended by engine based on active flags)
+# ---------------------------------------------------------------------------
+
+SNIPPET_CROSS_PAGE_TABLE = """
+Cross-page table detection:
+- If a table at the BOTTOM of the page appears incomplete (no summary/total row, no bottom border, data rows seem to continue), add this marker AFTER the table: <!-- TABLE_CONTINUES:columns=N --> (N = number of columns).
+- If a table at the TOP of the page appears to be a continuation from a previous page (no table title, starts directly with data rows or a repeated header), add this marker BEFORE the table: <!-- TABLE_CONTINUED:columns=N -->. Maintain the same column structure as the previous page.
+"""
+
+SNIPPET_IMAGE_NUMBERING = """
+This page contains {n_images} embedded image(s). When you encounter each image, output a numbered placeholder in this exact format: ![description](figure_0), ![description](figure_1), etc. Number them starting from 0 in the order they appear top-to-bottom.
+"""
+
+SNIPPET_DUAL_PAGE_MERGE = """\
+You are given TWO consecutive pages of a document. A table on the first page continues onto the second page.
+
+CRITICAL — you MUST merge the cross-page table into ONE single Markdown table:
+- Use the header row from the first page ONLY. Do NOT repeat headers.
+- ALL data rows from both pages go into this ONE table — no splitting.
+- Rows with sub-categories (e.g. 'Other', 'Changes in...') are still part of the same table — keep them as rows, do NOT break the table.
+- Keep currency symbols and numbers in the same cell: `$ 20,406` is ONE cell, not `$ | 20,406`.
+- Indented sub-items are still table rows. Preserve the indentation in the first column text.
+
+For content BEFORE the table on page 1 and AFTER the table on page 2, output normally. Separate pre-table, table, and post-table sections with blank lines.
+
+Output ONLY Markdown, no explanations.\
+"""
+
+# ---------------------------------------------------------------------------
+# Lookup
+# ---------------------------------------------------------------------------
 
 def get_prompt(file_type: str) -> str:
-    """Get the appropriate extraction prompt for a file type."""
+    """Get the base extraction prompt for a file type."""
     prompt_map: dict[str, str] = {
         "pdf": DOCUMENT_PROMPT,
         "docx": DOCUMENT_PROMPT,

@@ -16,6 +16,9 @@ from statistics import median
 
 import fitz  # PyMuPDF
 
+# Suppress "Consider using the pymupdf_layout package" stdout message
+fitz.no_recommend_layout = True
+
 from file_parse_engine.config import get_settings
 from file_parse_engine.models import PageImage, ParsedDocument, ParsedPage, VisualElement
 from file_parse_engine.parsers import register

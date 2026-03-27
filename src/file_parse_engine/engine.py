@@ -118,6 +118,8 @@ class FileParseEngine:
 
         # Enrichment passes (PDF only)
         if parser.file_type == "pdf":
+            if self.settings.merge_pages and strategy in ("vlm", "hybrid"):
+                doc = await self._merge_pages_pass(doc, parser, path)
             if self.settings.extract_images:
                 doc = self._enrich_images(doc, path)
             if self.settings.enrich_links:
@@ -306,6 +308,72 @@ class FileParseEngine:
             page.markdown = md
 
         logger.debug("Link enrichment: injected links for %d page(s)", len(all_links))
+        return doc
+
+    async def _merge_pages_pass(
+        self, doc: ParsedDocument, parser, path: Path,
+    ) -> ParsedDocument:
+        """Second pass: re-extract cross-page table boundaries with dual-page VLM requests.
+
+        Scans for TABLE_CONTINUES / TABLE_CONTINUED markers, then sends both
+        adjacent pages in a single VLM request for coherent table extraction.
+        """
+        import re
+
+        _CONTINUES = re.compile(r"<!--\s*TABLE_CONTINUES\s*:\s*columns\s*=\s*\d+\s*-->")
+        _CONTINUED = re.compile(r"<!--\s*TABLE_CONTINUED\s*:\s*columns\s*=\s*\d+\s*-->")
+
+        pages_by_num = {p.page_number: p for p in doc.pages}
+        page_images_cache: dict[int, PageImage] | None = None
+
+        # Find page pairs that need dual-page re-extraction
+        pairs: list[tuple[int, int]] = []
+        for p in doc.pages:
+            if _CONTINUES.search(p.markdown):
+                next_num = p.page_number + 1
+                if next_num in pages_by_num:
+                    pairs.append((p.page_number, next_num))
+            elif _CONTINUED.search(p.markdown):
+                prev_num = p.page_number - 1
+                if prev_num in pages_by_num and (prev_num, p.page_number) not in pairs:
+                    pairs.append((prev_num, p.page_number))
+
+        if not pairs:
+            return doc
+
+        # Lazy-render page images (only once, only if needed)
+        all_page_images = await parser.to_page_images(path)
+        page_images_cache = {pi.page_number: pi for pi in all_page_images}
+
+        logger.debug("Merge-pages pass: re-extracting %d page pair(s)", len(pairs))
+
+        prompt = (
+            "You are given TWO consecutive pages of a document. "
+            "Extract ALL content from BOTH pages into Markdown.\n\n"
+            "CRITICAL rules for tables that span across the two pages:\n"
+            "- The table starts on the first page and continues on the second page.\n"
+            "- Output ONE unified table with a single header row.\n"
+            "- Do NOT repeat the header. Do NOT split into two tables.\n"
+            "- Keep currency symbols and numbers in the same cell (e.g. `$ 20,406` not `$ | 20,406`).\n\n"
+            "Separate the two pages' content with a line containing only `---`.\n"
+            "For content NOT part of the cross-page table, extract normally per page.\n"
+            "Output ONLY Markdown, no explanations."
+        )
+
+        for pg_a, pg_b in pairs:
+            img_a = page_images_cache.get(pg_a)
+            img_b = page_images_cache.get(pg_b)
+            if not img_a or not img_b:
+                continue
+
+            result_pages = await self.vlm.extract_multi_page([img_a, img_b], prompt)
+
+            # Replace the original pages with re-extracted content
+            for rp in result_pages:
+                rp.markdown = clean_markdown(rp.markdown)
+                if rp.page_number in pages_by_num:
+                    pages_by_num[rp.page_number].markdown = rp.markdown
+
         return doc
 
     @staticmethod

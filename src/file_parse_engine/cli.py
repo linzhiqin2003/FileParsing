@@ -96,6 +96,7 @@ def parse(
     model: str = typer.Option("", "--model", "-m", help="VLM model alias from routes (e.g. qwen3.5-9b, gemini-flash)"),
     enrich_links: bool = typer.Option(False, "--enrich-links", "-l", help="Inject real PDF hyperlinks into output"),
     extract_images: bool = typer.Option(False, "--extract-images", "-i", help="Export embedded images & inject into Markdown"),
+    merge_pages: bool = typer.Option(False, "--merge-pages", "-M", help="Re-extract cross-page tables with dual-page VLM request"),
     force: bool = typer.Option(False, "--force", "-f", help="Re-parse files even if output already exists"),
     concurrency: int = typer.Option(0, "--concurrency", "-c", help="Max concurrent VLM requests (0 = auto)"),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable debug logging"),
@@ -115,6 +116,8 @@ def parse(
         settings.enrich_links = True
     if extract_images:
         settings.extract_images = True
+    if merge_pages:
+        settings.merge_pages = True
 
     effective_strategy: ParseStrategy = settings.strategy
 

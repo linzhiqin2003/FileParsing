@@ -51,29 +51,33 @@ class VLMProvider:
 
     async def extract(
         self,
-        image_bytes: bytes,
+        image_bytes: bytes | list[bytes],
         prompt: str,
         *,
         timeout: int = 60,
     ) -> tuple[str, VLMUsage]:
-        """Send an image to the VLM and return (text, usage)."""
-        image_bytes = resize_if_needed(image_bytes)
-        b64 = to_base64(image_bytes)
+        """Send one or more images to the VLM and return (text, usage)."""
+        # Support single image or list of images
+        if isinstance(image_bytes, list):
+            images = image_bytes
+        else:
+            images = [image_bytes]
+
+        content: list[dict] = []
+        for img in images:
+            img = resize_if_needed(img)
+            b64 = to_base64(img)
+            content.append({
+                "type": "image_url",
+                "image_url": {"url": f"data:image/png;base64,{b64}"},
+            })
+        content.append({"type": "text", "text": prompt})
 
         payload = {
             "model": self.model,
             "messages": [
                 {"role": "system", "content": SYSTEM_PROMPT},
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "image_url",
-                            "image_url": {"url": f"data:image/png;base64,{b64}"},
-                        },
-                        {"type": "text", "text": prompt},
-                    ],
-                },
+                {"role": "user", "content": content},
             ],
             "max_tokens": self.max_tokens,
             "temperature": self.temperature,

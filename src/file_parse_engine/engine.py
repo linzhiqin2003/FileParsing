@@ -354,14 +354,15 @@ class FileParseEngine:
 
         prompt = (
             "You are given TWO consecutive pages of a document. "
-            "Extract ALL content from BOTH pages into Markdown.\n\n"
-            "CRITICAL rules for tables that span across the two pages:\n"
-            "- The table starts on the first page and continues on the second page.\n"
-            "- Output ONE unified table with a single header row.\n"
-            "- Do NOT repeat the header. Do NOT split into two tables.\n"
-            "- Keep currency symbols and numbers in the same cell (e.g. `$ 20,406` not `$ | 20,406`).\n\n"
-            "Separate the two pages' content with a line containing only `---`.\n"
-            "For content NOT part of the cross-page table, extract normally per page.\n"
+            "A table on the first page continues onto the second page.\n\n"
+            "CRITICAL — you MUST merge the cross-page table into ONE single Markdown table:\n"
+            "- Use the header row from the first page ONLY. Do NOT repeat headers.\n"
+            "- ALL data rows from both pages go into this ONE table — no splitting.\n"
+            "- Rows with sub-categories (e.g. 'Other', 'Changes in...') are still part of the same table — keep them as rows, do NOT break the table.\n"
+            "- Keep currency symbols and numbers in the same cell: `$ 20,406` is ONE cell, not `$ | 20,406`.\n"
+            "- Indented sub-items are still table rows. Preserve the indentation in the first column text.\n\n"
+            "For content BEFORE the table on page 1 and AFTER the table on page 2, "
+            "output normally. Separate pre-table, table, and post-table sections with blank lines.\n\n"
             "Output ONLY Markdown, no explanations."
         )
 

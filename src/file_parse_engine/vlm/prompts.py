@@ -104,18 +104,19 @@ This page contains {n_images} embedded image(s). When you encounter each image, 
 """
 
 SNIPPET_DUAL_PAGE_MERGE = """\
-You are given TWO consecutive pages of a document. A table on the first page continues onto the second page.
+You are given TWO consecutive pages from the SAME document. These two pages contain a SINGLE table that is split across the page break.
 
-CRITICAL — you MUST merge the cross-page table into ONE single Markdown table:
-- Use the header row from the first page ONLY. Do NOT repeat headers.
-- ALL data rows from both pages go into this ONE table — no splitting.
-- Rows with sub-categories (e.g. 'Other', 'Changes in...') are still part of the same table — keep them as rows, do NOT break the table.
-- Keep currency symbols and numbers in the same cell: `$ 20,406` is ONE cell, not `$ | 20,406`.
-- Indented sub-items are still table rows. Preserve the indentation in the first column text.
+Your task: combine ALL rows from BOTH pages into exactly ONE Markdown table.
 
-For content BEFORE the table on page 1 and AFTER the table on page 2, output normally. Separate pre-table, table, and post-table sections with blank lines.
+Rules:
+1. There is only ONE table header — take it from the first page. NEVER repeat the header row.
+2. Every data row from page 1 AND page 2 goes into this ONE table. Do NOT output two separate tables.
+3. Sub-section labels within the table (e.g. "Operating expenses", "Other", "Changes in operating assets...") are regular rows in the SAME table — do NOT break the table at these rows.
+4. Currency symbol + number = ONE cell: `| $ 26,044 |` is correct; `| $ | 26,044 |` is WRONG.
+5. If there is non-table content (titles, notes) before the table on page 1 or after the table on page 2, output it normally outside the table.
+6. Separate page 1 content and page 2 content with a single `---` line. The merged table should appear entirely under page 1's section.
 
-Output ONLY Markdown, no explanations.\
+Output ONLY Markdown. No commentary.\
 """
 
 # ---------------------------------------------------------------------------

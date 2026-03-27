@@ -366,26 +366,39 @@ class FileParseEngine:
 
         results = await asyncio.gather(*[_extract_pair(a, b) for a, b in pairs])
 
-        # Apply results — only overwrite with non-empty content
+        # Apply results with safety checks
         overwritten: set[int] = set()
         for pg_a, pg_b, result_pages in results:
             for rp in result_pages:
                 rp.markdown = clean_markdown(rp.markdown)
                 pn = rp.page_number
 
-                # Skip empty results (don't wipe original content)
+                # Skip empty results
                 if not rp.markdown.strip():
                     continue
 
-                if pn in pages_by_num:
-                    if pn in overwritten:
-                        # Chain case: only overwrite if this is the
-                        # "continued" side of the new pair
-                        if pn == pg_b:
-                            pages_by_num[pn].markdown = rp.markdown
-                    else:
-                        pages_by_num[pn].markdown = rp.markdown
-                    overwritten.add(pn)
+                if pn not in pages_by_num:
+                    continue
+
+                original = pages_by_num[pn].markdown
+                new_content = rp.markdown
+
+                # Safety: if new content is much shorter than original,
+                # it was likely truncated — keep the original
+                if len(original) > 100 and len(new_content) < len(original) * 0.6:
+                    logger.debug(
+                        "Merge-pages: skipping page %d — new content too short "
+                        "(%d vs %d chars, likely truncated)",
+                        pn, len(new_content), len(original),
+                    )
+                    continue
+
+                if pn in overwritten:
+                    if pn == pg_b:
+                        pages_by_num[pn].markdown = new_content
+                else:
+                    pages_by_num[pn].markdown = new_content
+                overwritten.add(pn)
 
         return doc
 

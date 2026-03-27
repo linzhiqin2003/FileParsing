@@ -366,14 +366,21 @@ class FileParseEngine:
 
         results = await asyncio.gather(*[_extract_pair(a, b) for a, b in pairs])
 
-        # Apply results with chain-aware overwrite logic
+        # Apply results — only overwrite with non-empty content
         overwritten: set[int] = set()
         for pg_a, pg_b, result_pages in results:
             for rp in result_pages:
                 rp.markdown = clean_markdown(rp.markdown)
                 pn = rp.page_number
+
+                # Skip empty results (don't wipe original content)
+                if not rp.markdown.strip():
+                    continue
+
                 if pn in pages_by_num:
                     if pn in overwritten:
+                        # Chain case: only overwrite if this is the
+                        # "continued" side of the new pair
                         if pn == pg_b:
                             pages_by_num[pn].markdown = rp.markdown
                     else:

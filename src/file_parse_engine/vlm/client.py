@@ -124,13 +124,29 @@ class VLMClient:
         parts = re.split(r"\n---+\s*\n", text)
 
         results: list[ParsedPage] = []
-        for i, page in enumerate(pages):
-            md = parts[i].strip() if i < len(parts) else ""
+        if len(parts) >= len(pages):
+            # Model split correctly — assign each part to its page
+            for i, page in enumerate(pages):
+                md = parts[i].strip() if i < len(parts) else ""
+                results.append(ParsedPage(
+                    page_number=page.page_number,
+                    markdown=md,
+                    provider=provider_used,
+                ))
+        else:
+            # Model merged everything into one block (e.g. unified table).
+            # Assign entire output to the first page, leave others empty.
             results.append(ParsedPage(
-                page_number=page.page_number,
-                markdown=md,
+                page_number=pages[0].page_number,
+                markdown=text.strip(),
                 provider=provider_used,
             ))
+            for page in pages[1:]:
+                results.append(ParsedPage(
+                    page_number=page.page_number,
+                    markdown="",
+                    provider=provider_used,
+                ))
 
         return results
 
